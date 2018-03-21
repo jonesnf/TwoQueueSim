@@ -15,7 +15,7 @@ Author: N8
 */
 using chrono_clk = std::chrono::system_clock;
 
-bool SYS_PROC = false;
+bool SYS_EMPTY = true;
 
 unsigned reseed() {
 	return chrono_clk::now().time_since_epoch().count();
@@ -25,15 +25,14 @@ void queue_pkt() {
 	std::cout << "Add pkt to queue " << std::endl;
 }
 
-void service_pkt() {
+void service_pkt(double& total_srvc_t) {
 	std::default_random_engine generator(reseed());
 	std::exponential_distribution<double> edist(5);
 	double srvc_time = edist(generator);  
-	std::cout << "pkt service time: " << srvc_time << std::endl;
-	//SYS_PROC = true;
+	total_srvc_t += srvc_time;
 }
 
-void send_pkts(const int& pkts, const int& sec) {
+void send_pkts(const int& pkts, const int& sec, double& srvc_t) {
 	double start = 0.0;
 	double avg_ia = 0.0;
 	std::queue<double> q1, q2;
@@ -46,25 +45,27 @@ void send_pkts(const int& pkts, const int& sec) {
 		//	  << std::endl; 
 		avg_ia += pkt_time - (sec+start);
 		start = pkt_time - sec;
-		(!SYS_PROC) ? service_pkt() : queue_pkt();
+		(SYS_EMPTY) ? service_pkt(srvc_t) : queue_pkt();
 	}
-	std::cout << "	- Avg IA: " << avg_ia / pkts << std::endl;
+//	std::cout << "	- Avg IA: " << avg_ia / pkts << std::endl;
 }
 
 void start_sim(const int& lambda) {
 	int num_pkts = 0; int sec = 0; 
-	std::queue<double> q1, q2;
+	double total_srvc_t = 0.0;
 	std::default_random_engine generator(reseed());
 	std::poisson_distribution<int> pdist(lambda);
-	while ( num_pkts < 30 ) {
+	while ( num_pkts < 100 ) {
 		int pkts_arr = pdist(generator);	
 		std::cout << pkts_arr  
 			  << " packets just arrived"
 			  << std::endl; 
-		send_pkts(pkts_arr, sec);
+		send_pkts(pkts_arr, sec, total_srvc_t);
 		sec++;
 		num_pkts += pkts_arr;
 	}
+	std::cout << "Average service time: " 
+		  << total_srvc_t / num_pkts << std::endl;
 }
 
 
