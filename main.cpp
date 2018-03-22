@@ -5,6 +5,8 @@
 #include <random>
 #include <string>
 #include <chrono>
+#include <cmath>
+#include "packets.h"
 
 /*
 Copyright (C) 2017 by jonesnf@miamioh.edu
@@ -14,6 +16,7 @@ File: main.cpp
 Author: N8
 */
 using chrono_clk = std::chrono::system_clock;
+using Pktq = std::queue<Packet>;
 
 bool SYS_EMPTY = true;
 
@@ -25,34 +28,59 @@ void queue_pkt() {
 	std::cout << "Add pkt to queue " << std::endl;
 }
 
-void service_pkt(double& total_srvc_t) {
+double service_pkt() {
 	std::default_random_engine generator(reseed());
 	std::exponential_distribution<double> edist(5);
-	double srvc_time = edist(generator);  
-	total_srvc_t += srvc_time;
+	return  edist(generator);  
 }
 
-void send_pkts(const int& pkts, const int& sec, double& srvc_t) {
+// Going to have to return the prev packet for next batch of pkts
+void send_pkts(const int& pkts, const int& sec, double& srvc_t, \
+                                            Pktq& q1, int& blkd) {
 	double start = 0.0;
-	double avg_ia = 0.0;
-	std::queue<double> q1, q2;
+	double avg_ia = 0.0; // DEBUG
+    Packet prev_pkt;
 	for ( int i=0; i < pkts; i++ ) {
 		std::default_random_engine generator(reseed());
+		// might need to change this to exponential? 
 		std::uniform_real_distribution<double> urd(sec+start, sec+1.0);
-		double pkt_time = urd(generator);
+		Packet pkt;	
+		pkt.arrv_time = urd(generator);
+        pkt.wait_time = 0;
 		//std::cout << "	- Packet " << i+1
-		//	  << " arrived at: " << pkt_time
+		//	  << " arrived at: " << pkt.arrv_time
 		//	  << std::endl; 
-		avg_ia += pkt_time - (sec+start);
-		start = pkt_time - sec;
-		(SYS_EMPTY) ? service_pkt(srvc_t) : queue_pkt();
+		avg_ia += pkt.arrv_time - (sec+start); // DEBUG
+		start = pkt.arrv_time - sec;
+		if (SYS_EMPTY) {
+		     pkt.srvc_time = service_pkt();
+		     pkt.wait_time = 0;
+		     srvc_t += pkt.srvc_time;
+		     SYS_EMPTY = false;
+        } else if ((prev_pkt.srvc_time + prev_pkt.arrv_time) \
+                  < pkt.arrv_time) {
+             pkt.srvc_time = service_pkt();
+		     pkt.wait_time = 0;
+		     srvc_t += pkt.srvc_time;
+		} else if ((prev_pkt.srvc_time + prev_pkt.arrv_time \
+                   + prev_pkt.wait_time)  > pkt.arrv_time) {
+		     pkt.srvc_time = service_pkt();
+		     pkt.wait_time = prev_pkt.arrv_time + prev_pkt.srvc_time \
+                              + prev_pkt.wait_time - pkt.arrv_time;
+		     srvc_t += pkt.srvc_time;
+		     q1.push(pkt); 
+		} else {
+		     blkd++;
+		}
+        prev_pkt = pkt;
 	}
 //	std::cout << "	- Avg IA: " << avg_ia / pkts << std::endl;
 }
 
 void start_sim(const int& lambda) {
-	int num_pkts = 0; int sec = 0; 
-	double total_srvc_t = 0.0;
+	int num_pkts = 0; int sec = 0; int blkd = 0; 
+	double srvc_t = 0.0; // total service time
+	Pktq q1, q2;
 	std::default_random_engine generator(reseed());
 	std::poisson_distribution<int> pdist(lambda);
 	while ( num_pkts < 100 ) {
@@ -60,12 +88,15 @@ void start_sim(const int& lambda) {
 		std::cout << pkts_arr  
 			  << " packets just arrived"
 			  << std::endl; 
-		send_pkts(pkts_arr, sec, total_srvc_t);
+		send_pkts(pkts_arr, sec, srvc_t, q1, blkd);
 		sec++;
 		num_pkts += pkts_arr;
-	}
+	}	
 	std::cout << "Average service time: " 
-		  << total_srvc_t / num_pkts << std::endl;
+		  << srvc_t / num_pkts << std::endl;
+	std::cout << "Packets in q1: " << q1.size() << std::endl;
+	std::cout << "Packets blocked: " << blkd << std::endl;
+    std::cout << "Total Packets: " << num_pkts << std::endl;
 }
 
 
