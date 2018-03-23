@@ -7,9 +7,10 @@ public:
 	Packet();
 	Packet(const double& arr_time);
 	Packet(const Packet& pkt);
-	double arrv_time;
-	double srvc_time;
-	double wait_time;
+    double total_pkt_t();
+	double arrv_time; // arrival time of pkt
+	double srvc_time; // service time of pkt
+	double wait_time; // wait time of pkt
 private:
 };
 
