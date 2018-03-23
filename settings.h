@@ -7,7 +7,7 @@ public:
     int lambda;
     int mu;
     size_t queue_sz;
-    int phi;
+    double phi;
 private:
 };
 
