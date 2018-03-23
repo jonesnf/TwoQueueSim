@@ -107,9 +107,6 @@ void start_sim(const Settings& cfg) {
     std::poisson_distribution<int> pdist(cfg.lambda);
     while ( num_pkts < 60 ) {
         int pkts_arr = pdist(generator);	
-		std::cout << pkts_arr  
-			  << " packets just arrived"
-			  << std::endl; 
         send_pkts(pkts_arr, sec, srvc_t, prev_pkt, q1, q2, cfg, blkd);
         sec++;
         num_pkts += pkts_arr;
@@ -125,17 +122,17 @@ void start_sim(const Settings& cfg) {
 
 int main(int argc, char* argv[]) {
     Settings cfg;
-	if (argc < 5) {
-		std::cerr << "Please enter the following: ./<program> <lambda>"
-                  << " <mu> <queue size> <phi>"  << std::endl;
-		return -1;
-	} else {
-		cfg.lambda   = atof(argv[1]);
+    if (argc < 5) {
+    std::cerr << "Please enter the following: ./<program> <lambda>"
+              << " <mu> <queue size> <phi>"  << std::endl;
+    return -1;
+    } else {
+        cfg.lambda   = atof(argv[1]);
         cfg.mu       = atof(argv[2]);
         cfg.queue_sz = atof(argv[3]);
         cfg.phi      = atof(argv[4]);
         
-	} 
-	start_sim(cfg);	
-	return 0;
+    } 
+    start_sim(cfg);	
+    return 0;
 }
