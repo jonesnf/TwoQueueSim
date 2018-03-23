@@ -34,28 +34,58 @@ void flush_pkts(Pktq& q1, Pktq& q2, double& srvc_t) {
         srvc_t += q2.front().srvc_time;
         q2.pop();
     }
-    
-
 }
 
-void queue_pkt(Packet& pkt, Pktq& q1, Pktq& q2, const Settings& cfg) {
-    std::default_random_engine generator(reseed());
-    std::uniform_real_distribution<double> queue_sel(0.0, 1.0);
-    double sel = queue_sel(generator);
-    (sel > 1-cfg.mu ) ? q1.push(pkt) : q2.push(pkt); 
-}
-
+/* 
+ * Give service time to packet based on exponential distribution
+ */
 double service_pkt(const Settings& cfg) {
     std::default_random_engine generator(reseed());
     std::exponential_distribution<double> edist(cfg.mu);
     return  edist(generator);  
 }
 
+/*
+ * Add pkt to queue after selecting which queue to place
+ */
+bool add_queue(Packet& prev_pkt, Packet& pkt, Pktq& pq, const Settings& cfg) {
+        if (SYS_EMPTY) {
+            pkt.srvc_time = service_pkt(cfg);
+            SYS_EMPTY = false;
+        } else if (prev_pkt.total_pkt_t() < pkt.arrv_time && pq.empty()) {
+            pkt.srvc_time = service_pkt(cfg);
+            pkt.wait_time = 0;
+        } else if (prev_pkt.total_pkt_t() > pkt.arrv_time && \
+                                    pq.size() < cfg.queue_sz) {
+            pkt.srvc_time = service_pkt(cfg);
+            pkt.wait_time = prev_pkt.total_pkt_t() - pkt.arrv_time;
+            pq.push(pkt);
+        } else if (prev_pkt.total_pkt_t() < pkt.arrv_time && \
+                                    pq.size() < cfg.queue_sz) {
+            pkt.srvc_time = service_pkt(cfg);
+            pkt.wait_time = 0;
+            pq.push(pkt);
+        } else {
+            // Packet was blocked
+            return false; 
+        }
+    return true;
+}
+
+/* 
+ * Select which queue (system) to process packet
+ */
+bool sel_queue(const Settings& cfg) {
+    std::default_random_engine generator(reseed());
+    std::uniform_real_distribution<double> queue_sel(0.0, 1.0);
+    return (queue_sel(generator) > 1-cfg.phi) ? true : false; 
+}
+
 // TODO: Make function shorter
 void send_pkts(const int& pkts, const int& sec, double& srvc_t, \
                Packet& prev_pkt, Pktq& q1, Pktq& q2, const Settings& cfg,\
                                                                  int& blkd) {
-    double start = 0.0;
+    double start = 0.0; bool sel_q1 = true; // select q1 by default
     double avg_ia = 0.0; // DEBUG
     for ( int i=0; i < pkts; i++ ) {
         std::default_random_engine generator(reseed());
@@ -70,30 +100,11 @@ void send_pkts(const int& pkts, const int& sec, double& srvc_t, \
         //	  << std::endl; 
         avg_ia += pkt.arrv_time - (sec+start); // DEBUG
         start = pkt.arrv_time - sec;
-        // TODO: change if to account for 2 queues
-        if (SYS_EMPTY) {
-            pkt.srvc_time = service_pkt(cfg);
-            srvc_t += pkt.srvc_time;
-            SYS_EMPTY = false;
-        } else if (prev_pkt.total_pkt_t() < pkt.arrv_time && q1.empty()) {
-            pkt.srvc_time = service_pkt(cfg);
-            pkt.wait_time = 0;
-            srvc_t += pkt.srvc_time;
-        } else if (prev_pkt.total_pkt_t() > pkt.arrv_time && \
-                   q2.size() < cfg.queue_sz && q1.size() < cfg.queue_sz) {
-            pkt.srvc_time = service_pkt(cfg);
-            pkt.wait_time = prev_pkt.total_pkt_t() - pkt.arrv_time;
-            srvc_t += pkt.srvc_time;
-            queue_pkt(pkt, q1, q2, cfg); 
-        } else if (prev_pkt.total_pkt_t() < pkt.arrv_time && \
-                   q2.size() < cfg.queue_sz && q1.size() < cfg.queue_sz) {
-            pkt.srvc_time = service_pkt(cfg);
-            pkt.wait_time = 0;
-            srvc_t += pkt.srvc_time;
-            queue_pkt(pkt, q1, q2, cfg); 
-        } else {
-            blkd++;
-        }
+        sel_q1 = sel_queue(cfg); // Select a queue
+        if (sel_q1) 
+         (add_queue(prev_pkt, pkt, q1, cfg)) ? srvc_t += pkt.srvc_time : blkd++;
+        else        
+         (add_queue(prev_pkt, pkt, q2, cfg)) ? srvc_t += pkt.srvc_time : blkd++;
         prev_pkt = pkt;
     }
 }
@@ -105,7 +116,7 @@ void start_sim(const Settings& cfg) {
     Packet prev_pkt;
     std::default_random_engine generator(reseed());
     std::poisson_distribution<int> pdist(cfg.lambda);
-    while ( num_pkts < 60 ) {
+    while ( num_pkts < 6000 ) {
         int pkts_arr = pdist(generator);	
         send_pkts(pkts_arr, sec, srvc_t, prev_pkt, q1, q2, cfg, blkd);
         sec++;
