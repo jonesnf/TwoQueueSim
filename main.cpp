@@ -61,9 +61,9 @@ void send_pkts(const int& pkts, const int& sec, double& srvc_t, \
 		avg_ia += pkt.arrv_time - (sec+start); // DEBUG
 		start = pkt.arrv_time - sec;
 		if (SYS_EMPTY) {
-		     pkt.srvc_time = service_pkt();
-		     srvc_t += pkt.srvc_time;
-             SYS_EMPTY = false;
+		    pkt.srvc_time = service_pkt();
+		    srvc_t += pkt.srvc_time;
+            SYS_EMPTY = false;
         } else if (prev_pkt.total_pkt_t() < pkt.arrv_time && q1.empty()) {
              pkt.srvc_time = service_pkt();
 		     pkt.wait_time = 0;
