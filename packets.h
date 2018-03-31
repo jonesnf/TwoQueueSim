@@ -11,6 +11,7 @@ public:
     double arrv_time; // arrival time of pkt
     double srvc_time; // service time of pkt
     double wait_time; // wait time of pkt
+    bool queue1; // send to queue1 by default 
 private:
 };
 

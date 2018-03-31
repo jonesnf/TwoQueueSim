@@ -4,6 +4,7 @@ Packet::Packet() {
     arrv_time = 0.0;
     srvc_time = 0.0;
     wait_time = 0.0;
+    queue1 = true;
 }
 
 Packet::Packet(const double& arr_time) { arrv_time = arr_time; }

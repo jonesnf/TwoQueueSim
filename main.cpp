@@ -25,14 +25,13 @@ unsigned reseed() {
     return chrono_clk::now().time_since_epoch().count();
 }
 
-void flush_pkts(Pktq& q1, Pktq& q2, double& srvc_t) {
-    while (!q1.empty()){
-        srvc_t += q1.front().srvc_time;  
-        q1.pop(); 
-    }
-    while (!q2.empty()) {
-        srvc_t += q2.front().srvc_time;
-        q2.pop();
+/*
+ * Flush the rest of the packets in the queue
+ */
+void flush_pkts(Pktq& pq, double& srvc_t) {
+    while (!pq.empty()){
+        srvc_t += pq.front().srvc_time;  
+        pq.pop(); 
     }
 }
 
@@ -89,7 +88,7 @@ void send_pkts(const int& pkts, const int& sec, double& srvc_t, \
     double avg_ia = 0.0; // DEBUG
     for ( int i=0; i < pkts; i++ ) {
         std::default_random_engine generator(reseed());
-        // TODO: might need to change this to exponential? 
+        // TODO: Change this to exponential 
         std::uniform_real_distribution<double> urd(sec+start, sec+1.0);
         Packet pkt;	
         pkt.arrv_time = urd(generator);
@@ -122,10 +121,9 @@ void start_sim(const Settings& cfg) {
         sec++;
         num_pkts += pkts_arr;
     }	
-    flush_pkts(q1, q2, srvc_t);
-    std::cout << "Average service time: " << srvc_t / num_pkts << std::endl;
-    std::cout << "Packets in q1: " << q1.size() << std::endl;
-    std::cout << "Packets in q2: " << q1.size() << std::endl;
+    flush_pkts(q1, srvc_t);
+    flush_pkts(q2, srvc_t);
+    std::cout << "Average service time: " << srvc_t / (num_pkts-blkd) << std::endl;
     std::cout << "Packets blocked: " << blkd << std::endl;
     std::cout << "Total Packets: " << num_pkts << std::endl;
 }
@@ -142,7 +140,6 @@ int main(int argc, char* argv[]) {
         cfg.mu       = atof(argv[2]);
         cfg.queue_sz = atof(argv[3]);
         cfg.phi      = atof(argv[4]);
-        
     } 
     start_sim(cfg);	
     return 0;
