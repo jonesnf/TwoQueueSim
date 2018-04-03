@@ -8,6 +8,7 @@ public:
     int mu;
     size_t queue_sz;
     double phi;
+    int num_pkts;
 private:
 };
 
