@@ -8,9 +8,10 @@
 #include <cmath>
 #include "packets.h"
 #include "settings.h"
+#include "stats.h"
 
 /*
-Copyright (C) 2017 by jonesnf@miamioh.edu
+Copyright (C) 2017 by Nathan Jones (jonesnf@miamioh.edu) 
 
 File: main.cpp
 
@@ -23,6 +24,28 @@ bool SYS_EMPTY = true;
 
 unsigned reseed() {
     return chrono_clk::now().time_since_epoch().count();
+}
+
+/*
+ * Print table of relevant stats. 
+ * Stats functions => 1 means queue 1, 0 means queue2
+ **/
+void print_table(Stats& stats, const Settings& cfg) {
+    std::cout << std::string(40, '~') << std::endl;
+    std::cout << "| Arrivals         | " << cfg.num_pkts << std::endl;
+    std::cout << std::string(40, '~') << std::endl;
+    std::cout << "| Q1 Srvc Time Avg | " << stats.avg_srvc(1) << std::endl;
+    std::cout << std::string(40, '~') << std::endl;
+    std::cout << "| Q2 Srvc Time Avg | " << stats.avg_srvc(0) << std::endl;
+    std::cout << std::string(40, '~') << std::endl;
+    std::cout << "| Q1 Waiting   Avg | " << stats.avg_wait(1) << std::endl;
+    std::cout << std::string(40, '~') << std::endl;
+    std::cout << "| Q2 Waiting   Avg | " << stats.avg_wait(0) << std::endl; 
+    std::cout << std::string(40, '~') << std::endl;
+    std::cout << "| Q1 Blocking  Avg | " << stats.avg_blkd(1) << std::endl;
+    std::cout << std::string(40, '~') << std::endl;
+    std::cout << "| Q2 Blocking  Avg | " << stats.avg_blkd(0) << std::endl; 
+    std::cout << std::string(40, '~') << std::endl;
 }
 
 /*
@@ -80,40 +103,53 @@ bool sel_queue(const Settings& cfg) {
     return (queue_sel(generator) > 1-cfg.phi) ? true : false; 
 }
 
-void send_pkts(double& srvc_t, Packet& prev_pkt, Pktq& q1, Pktq& q2,\
-                                    const Settings& cfg, double& blkd) {
+//TODO: shorten
+void send_pkts(Stats& stat, Pktq& q1, Pktq& q2,\
+                                            const Settings& cfg) {
     bool sel_q1 = true; // select q1 by default
+    Packet ref, prev_pkt1, prev_pkt2;
     for ( int i=0; i < cfg.num_pkts; i++ ) {
         std::default_random_engine generator(reseed());
         std::exponential_distribution<double> ia_time(8);
         Packet pkt;	
-        pkt.arrv_time = ia_time(generator) + prev_pkt.arrv_time;
+        pkt.arrv_time = ia_time(generator) + ref.arrv_time;
         if (q1.front().total_pkt_t() < pkt.arrv_time && !q1.empty()) q1.pop(); 
         if (q2.front().total_pkt_t() < pkt.arrv_time && !q2.empty()) q2.pop(); 
         sel_q1 = sel_queue(cfg); // Select a queue
-        if (sel_q1) 
-         (add_queue(prev_pkt, pkt, q1, cfg)) ? srvc_t += pkt.srvc_time : blkd++;
-        else        
-         (add_queue(prev_pkt, pkt, q2, cfg)) ? srvc_t += pkt.srvc_time : blkd++;
-        prev_pkt = pkt;
+        if (sel_q1) { 
+            if (add_queue(prev_pkt1, pkt, q1, cfg)) {
+                stat.q1_srvc_t += pkt.srvc_time;
+                stat.q1_wait += pkt.wait_time;
+            } else {
+                stat.q1_blkd++;
+            }
+            stat.q1_total++;
+            prev_pkt1 = pkt;
+        } else {        
+            if (add_queue(prev_pkt2, pkt, q2, cfg)) {
+                stat.q2_srvc_t += pkt.srvc_time;
+                stat.q2_wait += pkt.wait_time;
+            } else {
+                stat.q2_blkd++;
+            }
+            stat.q2_total++;
+            prev_pkt2 = pkt;
+        }
+        ref = pkt;
     }
 }
 
 void start_sim(const Settings& cfg) {
-    double blkd = 0.0; double srvc_t = 0.0; // total service time
     Pktq q1, q2;
-    Packet prev_pkt;
+    Stats stat;
     bool sim = true;
     while ( sim ) {
-        send_pkts(srvc_t, prev_pkt, q1, q2, cfg, blkd);
+        send_pkts(stat, q1, q2, cfg);
         sim = false;
     }	
-    flush_pkts(q1, srvc_t);
-    flush_pkts(q2, srvc_t);
-    std::cout << "Average service time: " << srvc_t / (cfg.num_pkts-blkd)
-              << std::endl;
-    std::cout << "Blocking Probability: " << blkd / cfg.num_pkts << std::endl;
-    std::cout << "Number of Packets: " << cfg.num_pkts << std::endl;
+    flush_pkts(q1, stat.q1_srvc_t);
+    flush_pkts(q2, stat.q2_srvc_t);
+    print_table(stat, cfg);
 }
 
 
