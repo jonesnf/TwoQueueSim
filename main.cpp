@@ -34,17 +34,17 @@ void print_table(Stats& stats, const Settings& cfg) {
     std::cout << std::string(40, '~') << std::endl;
     std::cout << "| Arrivals         | " << cfg.num_pkts << std::endl;
     std::cout << std::string(40, '~') << std::endl;
-    std::cout << "| Q1 Srvc Time Avg | " << stats.avg_srvc(1) << std::endl;
+    std::cout << "| Q1 Service Time Avg  | " << stats.avg_srvc(1) << std::endl;
     std::cout << std::string(40, '~') << std::endl;
-    std::cout << "| Q2 Srvc Time Avg | " << stats.avg_srvc(0) << std::endl;
+    std::cout << "| Q2 Service Time Avg  | " << stats.avg_srvc(0) << std::endl;
     std::cout << std::string(40, '~') << std::endl;
-    std::cout << "| Q1 Waiting   Avg | " << stats.avg_wait(1) << std::endl;
+    std::cout << "| Q1 Delay Time Avg    | " << stats.avg_wait(1) << std::endl;
     std::cout << std::string(40, '~') << std::endl;
-    std::cout << "| Q2 Waiting   Avg | " << stats.avg_wait(0) << std::endl; 
+    std::cout << "| Q2 Delay Time Avg    | " << stats.avg_wait(0) << std::endl; 
     std::cout << std::string(40, '~') << std::endl;
-    std::cout << "| Q1 Blocking  Avg | " << stats.avg_blkd(1) << std::endl;
+    std::cout << "| Q1 Block Probability | " << stats.avg_blkd(1) << std::endl;
     std::cout << std::string(40, '~') << std::endl;
-    std::cout << "| Q2 Blocking  Avg | " << stats.avg_blkd(0) << std::endl; 
+    std::cout << "| Q2 Block Probability | " << stats.avg_blkd(0) << std::endl; 
     std::cout << std::string(40, '~') << std::endl;
 }
 
@@ -107,6 +107,7 @@ bool sel_queue(const Settings& cfg) {
 void send_pkts(Stats& stat, Pktq& q1, Pktq& q2,\
                                             const Settings& cfg) {
     bool sel_q1 = true; // select q1 by default
+    int ign_pkts = 1000; // ignore the first 1000 pkts 
     Packet ref, prev_pkt1, prev_pkt2;
     for ( int i=0; i < cfg.num_pkts; i++ ) {
         std::default_random_engine generator(reseed());
@@ -117,22 +118,22 @@ void send_pkts(Stats& stat, Pktq& q1, Pktq& q2,\
         if (q2.front().total_pkt_t() < pkt.arrv_time && !q2.empty()) q2.pop(); 
         sel_q1 = sel_queue(cfg); // Select a queue
         if (sel_q1) { 
-            if (add_queue(prev_pkt1, pkt, q1, cfg)) {
+            if (add_queue(prev_pkt1, pkt, q1, cfg) && i > ign_pkts) {
                 stat.q1_srvc_t += pkt.srvc_time;
                 stat.q1_wait += pkt.wait_time;
             } else {
-                stat.q1_blkd++;
+                if ( i > ign_pkts ) stat.q1_blkd++;
             }
-            stat.q1_total++;
+            if ( i > ign_pkts ) stat.q1_total++;
             prev_pkt1 = pkt;
         } else {        
-            if (add_queue(prev_pkt2, pkt, q2, cfg)) {
+            if (add_queue(prev_pkt2, pkt, q2, cfg) && i > ign_pkts) {
                 stat.q2_srvc_t += pkt.srvc_time;
                 stat.q2_wait += pkt.wait_time;
             } else {
-                stat.q2_blkd++;
+                if ( i > ign_pkts ) stat.q2_blkd++;
             }
-            stat.q2_total++;
+            if ( i > ign_pkts ) stat.q2_total++;
             prev_pkt2 = pkt;
         }
         ref = pkt;
