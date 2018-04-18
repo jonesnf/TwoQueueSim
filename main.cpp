@@ -31,8 +31,6 @@ unsigned reseed() {
 /*
  * Print table of relevant stats. 
  * Stats functions => 1 means queue 1, 0 means queue2
- * TODO: Clean up stats. Add calcs to stats class instead
- * TODO 2: change queueX throughputs
  **/
 void print_table(Stats& stats, const Settings& cfg) {
     std::cout << std::string(40, '+') << std::endl;
@@ -50,21 +48,28 @@ void print_table(Stats& stats, const Settings& cfg) {
     std::cout << std::string(40, '+') << std::endl;
     std::cout << "| Q2 Block Probability    | " << stats.avg_blkd(0) << std::endl; 
     std::cout << std::string(40, '+') << std::endl;
-    std::cout << "| Q1 Average Throughput   | " << (cfg.lambda*cfg.phi)*(1-stats.avg_blkd(1)) << std::endl; 
+    std::cout << "| Q1 Average Throughput   | " << (stats.q1_total-stats.q1_blkd) / SYS_TIME << std::endl; 
     std::cout << std::string(40, '+') << std::endl;
-    std::cout << "| Q2 Average Throughput   | " << (cfg.lambda*(1-cfg.phi))*(1-stats.avg_blkd(0)) << std::endl; 
+    std::cout << "| Q2 Average Throughput   | " << (stats.q2_total-stats.q2_blkd) / SYS_TIME<< std::endl; 
     std::cout << std::string(40, '+') << std::endl;
-    std::cout << "| Q1 Avg Num Packets      | " << (cfg.lambda*cfg.phi)*(stats.avg_srvc(1)+stats.avg_wait(1)) << std::endl; 
+    std::cout << "| Q1 Avg Num Packets      | " <<\
+                 (cfg.lambda*cfg.phi)*(stats.avg_srvc(1)+stats.avg_wait(1)) << std::endl; 
     std::cout << std::string(40, '+') << std::endl;
-    std::cout << "| Q2 Avg Num Packets      | " << (cfg.lambda*(1-cfg.phi))*(stats.avg_srvc(0)+stats.avg_wait(0)) << std::endl; 
+    std::cout << "| Q2 Avg Num Packets      | " <<\
+                 (cfg.lambda*(1-cfg.phi))*(stats.avg_srvc(0)+stats.avg_wait(0)) << std::endl; 
     std::cout << std::string(40, '+') << std::endl;
-    std::cout << "| Total Block Probability | " << (stats.q1_blkd+stats.q2_blkd) / cfg.num_pkts << std::endl; 
+    std::cout << "| Sys Block Probability   | " <<\
+                 (stats.q1_blkd+stats.q2_blkd) / cfg.num_pkts << std::endl; 
     std::cout << std::string(40, '+') << std::endl;
-    std::cout << "| Total Wait Time Avg (s) | " << (stats.q1_wait+stats.q2_wait) / cfg.num_pkts << std::endl; 
+    std::cout << "| Sys Delay Time Avg (s)  | " <<\
+                 (stats.q1_wait+stats.q2_wait) / cfg.num_pkts << std::endl; 
     std::cout << std::string(40, '+') << std::endl;
-    std::cout << "| Total Avg Throughput    | " <<((stats.q1_total-stats.q1_blkd)+(stats.q2_total-stats.q2_blkd)) / SYS_TIME << std::endl; 
+    std::cout << "| Sys Avg Throughput      | " <<\
+                 ((stats.q1_total-stats.q1_blkd)+(stats.q2_total-stats.q2_blkd)) / SYS_TIME << std::endl; 
     std::cout << std::string(40, '+') << std::endl;
-    std::cout << "| Total Avg Num Packets   | " << (cfg.lambda*cfg.phi)*(stats.avg_srvc(1)+stats.avg_wait(1))+(cfg.lambda*(1-cfg.phi))*(stats.avg_srvc(0)+stats.avg_wait(0)) << std::endl; 
+    std::cout << "| Sys Avg Num Packets     | " <<\
+                 (cfg.lambda*cfg.phi)*(stats.avg_srvc(1)+stats.avg_wait(1))+\
+                 (cfg.lambda*(1-cfg.phi))*(stats.avg_srvc(0)+stats.avg_wait(0)) << std::endl; 
     std::cout << std::string(40, '+') << std::endl;
 }
 
@@ -123,7 +128,7 @@ bool sel_queue(const Settings& cfg) {
     return (queue_sel(generator) > 1-cfg.phi) ? true : false; 
 }
 
-//TODO: shorten
+//TODO: condense 
 void send_pkts(Stats& stat, Pktq& q1, Pktq& q2,\
                                             const Settings& cfg) {
     bool sel_q1 = true; // select q1 by default
